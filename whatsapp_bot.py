@@ -29,7 +29,7 @@ Note: Fees are per year. 7.2 quota fees are free (government scholarship).
 """
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-2.0-flash")
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 def get_gemini_response(user_message):
     prompt = f"""You are a helpful college admission assistant for an Engineering College in Tamil Nadu, India.
@@ -75,6 +75,9 @@ def receive_message():
         value = changes["value"]
         if "messages" in value:
             message = value["messages"][0]
+            # Text message மட்டும் handle பண்ணு
+            if message.get("type") != "text":
+                return "OK", 200
             from_number = message["from"]
             user_text = message["text"]["body"]
             print(f"Message from {from_number}: {user_text}")
