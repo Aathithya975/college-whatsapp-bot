@@ -29,7 +29,7 @@ Note: Fees are per year. 7.2 quota fees are free (government scholarship).
 """
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
 def get_gemini_response(user_message):
     prompt = f"""You are a helpful college admission assistant for an Engineering College in Tamil Nadu, India.
