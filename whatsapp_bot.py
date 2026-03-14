@@ -1,43 +1,45 @@
 from flask import Flask, request
-import google.generativeai as genai
-import requests
 import os
+import requests
+import google.generativeai as genai
 
 app = Flask(__name__)
 
-# ========== CONFIG ==========
+# =========================
+# ENV CONFIG
+# =========================
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = "1030379623495589"
 VERIFY_TOKEN = "college_bot_123"
-# ============================
 
-COLLEGE_DATA = """
-Our Engineering College - Courses & Fees Information:
+# =========================
+# COLLEGE DETAILS
+# =========================
+COLLEGE_NAME = "V.S.B ENGINEERING COLLEGE"
+COLLEGE_LOCATION = "Karur"
+COLLEGE_EMAIL = "admission@vsbec.com"
+COLLEGE_PHONE = "9994496212"
+COLLEGE_WEBSITE = "https://vsbec.edu.in/"
+COLLEGE_ADMISSION_LINK = "https://vsbec.edu.in/contact-us/"
 
-| Department | Management Quota | Counselling Quota |
-|------------|------------------|-------------------|
-| IT         | ₹3,00,000        | ₹1,50,000         |
-| CSE        | ₹3,50,000        | ₹2,00,000         |
-| MECH       | ₹1,50,000        | ₹70,000           |
-| AIML       | ₹2,50,000        | ₹1,50,000         |
-| AIDS       | ₹4,00,000        | ₹1,50,000         |
-| CSBS       | ₹2,00,000        | ₹1,00,000         |
-| CIVIL      | ₹1,00,000        | ₹50,000           |
+COURSES = "UG, PG"
+FEE_TYPES = ["Merit", "Management", "Counselling", "7.5 Fee"]
 
-Note: Fees are per year. 7.2 quota fees are free (government scholarship).
+COLLEGE_CONTEXT = f"""
+College Name: {COLLEGE_NAME}
+Location: {COLLEGE_LOCATION}
+Email: {COLLEGE_EMAIL}
+Phone: {COLLEGE_PHONE}
+Website: {COLLEGE_WEBSITE}
+Courses: {COURSES}
+Fee Types: Merit, Management, Counselling, 7.5 Fee
+Admission Info: {COLLEGE_ADMISSION_LINK}
 """
 
-FEES = {
-    "it": {"management": "₹3,00,000", "counselling": "₹1,50,000"},
-    "cse": {"management": "₹3,50,000", "counselling": "₹2,00,000"},
-    "mech": {"management": "₹1,50,000", "counselling": "₹70,000"},
-    "aiml": {"management": "₹2,50,000", "counselling": "₹1,50,000"},
-    "aids": {"management": "₹4,00,000", "counselling": "₹1,50,000"},
-    "csbs": {"management": "₹2,00,000", "counselling": "₹1,00,000"},
-    "civil": {"management": "₹1,00,000", "counselling": "₹50,000"},
-}
-
+# =========================
+# GEMINI SETUP
+# =========================
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel("gemini-1.5-flash")
@@ -45,100 +47,10 @@ else:
     model = None
 
 
-def get_direct_reply(user_message):
-    text = user_message.lower().strip()
-
-    # greetings
-    if text in ["hi", "hello", "hey", "hii"]:
-        return (
-            "Hello! Welcome to our Engineering College chatbot.\n\n"
-            "You can ask about:\n"
-            "1. CSE fees\n"
-            "2. IT fees\n"
-            "3. AIML fees\n"
-            "4. AIDS fees\n"
-            "5. MECH fees\n"
-            "6. CSBS fees\n"
-            "7. CIVIL fees"
-        )
-
-    # scholarship / quota
-    if "7.2" in text or "scholarship" in text or "free seat" in text:
-        return "7.2 quota fees are free under government scholarship."
-
-    # all fees
-    if text in ["fees", "all fees", "course fees", "courses and fees"]:
-        return (
-            "Courses & Fees per year:\n\n"
-            "IT - Mgmt: ₹3,00,000 | Counselling: ₹1,50,000\n"
-            "CSE - Mgmt: ₹3,50,000 | Counselling: ₹2,00,000\n"
-            "MECH - Mgmt: ₹1,50,000 | Counselling: ₹70,000\n"
-            "AIML - Mgmt: ₹2,50,000 | Counselling: ₹1,50,000\n"
-            "AIDS - Mgmt: ₹4,00,000 | Counselling: ₹1,50,000\n"
-            "CSBS - Mgmt: ₹2,00,000 | Counselling: ₹1,00,000\n"
-            "CIVIL - Mgmt: ₹1,00,000 | Counselling: ₹50,000\n\n"
-            "7.2 quota fees are free."
-        )
-
-    # department-specific fees
-    for dept, fee in FEES.items():
-        if dept in text:
-            return (
-                f"{dept.upper()} Fees per year:\n"
-                f"Management Quota: {fee['management']}\n"
-                f"Counselling Quota: {fee['counselling']}\n\n"
-                f"7.2 quota fees are free."
-            )
-
-    return None
-
-
-def get_gemini_response(user_message):
-    if not model:
-        return None
-
-    prompt = f"""You are a helpful college admission assistant for an Engineering College in Tamil Nadu, India.
-Answer questions about courses and fees only based on the data below.
-Reply in the same language the student uses (Tamil or English).
-Keep answers short and clear.
-
-{COLLEGE_DATA}
-
-Student question: {user_message}"""
-
-    try:
-        response = model.generate_content(prompt)
-        if response and hasattr(response, "text") and response.text:
-            return response.text.strip()
-        return None
-    except Exception as e:
-        print(f"Gemini Error: {e}")
-        return None
-
-
-def get_reply(user_message):
-    # First try direct reply
-    direct_reply = get_direct_reply(user_message)
-    if direct_reply:
-        return direct_reply
-
-    # Then try Gemini
-    gemini_reply = get_gemini_response(user_message)
-    if gemini_reply:
-        return gemini_reply
-
-    # Final fallback
-    return (
-        "Sorry, I can only answer about college courses and fees right now.\n\n"
-        "Try asking like:\n"
-        "- CSE fees\n"
-        "- IT fees\n"
-        "- AIML fees\n"
-        "- all fees"
-    )
-
-
-def send_whatsapp_message(to, message):
+# =========================
+# WHATSAPP SENDERS
+# =========================
+def send_text(to, message):
     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
@@ -152,13 +64,265 @@ def send_whatsapp_message(to, message):
     }
 
     response = requests.post(url, headers=headers, json=data)
-    print("WhatsApp API status:", response.status_code)
-    print("WhatsApp API response:", response.text)
+    print("TEXT STATUS:", response.status_code)
+    print("TEXT RESPONSE:", response.text)
 
 
+def send_menu(to):
+    url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "interactive",
+        "interactive": {
+            "type": "list",
+            "header": {
+                "type": "text",
+                "text": "🎓 VSB Engineering College Bot"
+            },
+            "body": {
+                "text": (
+                    "👋 Welcome to V.S.B Engineering College Assistant.\n\n"
+                    "Please choose an option below:"
+                )
+            },
+            "footer": {
+                "text": "✨ Quick college help"
+            },
+            "action": {
+                "button": "📋 Open Menu",
+                "sections": [
+                    {
+                        "title": "📚 College Information",
+                        "rows": [
+                            {
+                                "id": "about_college",
+                                "title": "🏫 About College",
+                                "description": "View college basic details"
+                            },
+                            {
+                                "id": "courses_info",
+                                "title": "🎓 Courses",
+                                "description": "UG and PG programs"
+                            },
+                            {
+                                "id": "fees_info",
+                                "title": "💰 Fees Details",
+                                "description": "Merit, Management, Counselling, 7.5"
+                            },
+                            {
+                                "id": "admission_info",
+                                "title": "📝 Admission Info",
+                                "description": "Admission enquiry details"
+                            },
+                            {
+                                "id": "contact_info",
+                                "title": "📞 Contact",
+                                "description": "Phone and email details"
+                            },
+                            {
+                                "id": "location_info",
+                                "title": "📍 Location",
+                                "description": "College location and website"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    print("MENU STATUS:", response.status_code)
+    print("MENU RESPONSE:", response.text)
+
+
+# =========================
+# STATIC SMART REPLIES
+# =========================
+def get_static_reply(text):
+    msg = text.lower().strip()
+
+    greetings = ["hi", "hello", "hey", "hii", "menu", "start", "vanakkam", "வணக்கம்"]
+    if msg in greetings:
+        return "SHOW_MENU"
+
+    if "about" in msg or "college" in msg:
+        return (
+            f"🏫 *{COLLEGE_NAME}*\n\n"
+            f"📍 Location: {COLLEGE_LOCATION}\n"
+            f"🌐 Website: {COLLEGE_WEBSITE}\n"
+            f"📧 Email: {COLLEGE_EMAIL}\n"
+            f"📞 Phone: {COLLEGE_PHONE}"
+        )
+
+    if "course" in msg or "courses" in msg or "ug" in msg or "pg" in msg:
+        return (
+            f"🎓 *Courses Available*\n\n"
+            f"• {COURSES}\n\n"
+            f"🌐 More details:\n{COLLEGE_WEBSITE}"
+        )
+
+    if "fee" in msg or "fees" in msg or "management" in msg or "merit" in msg or "counselling" in msg or "7.5" in msg:
+        return (
+            "💰 *Fee Categories Available*\n\n"
+            "• Merit\n"
+            "• Management\n"
+            "• Counselling\n"
+            "• 7.5 Fee\n\n"
+            "📞 For exact fee details, please contact the admission office.\n"
+            f"Phone: {COLLEGE_PHONE}\n"
+            f"Email: {COLLEGE_EMAIL}"
+        )
+
+    if "admission" in msg or "apply" in msg:
+        return (
+            "📝 *Admission Information*\n\n"
+            "For admission enquiry and support, please use the official contact page:\n"
+            f"{COLLEGE_ADMISSION_LINK}"
+        )
+
+    if "contact" in msg or "phone" in msg or "email" in msg or "mail" in msg:
+        return (
+            "📞 *Contact Details*\n\n"
+            f"📱 Phone: {COLLEGE_PHONE}\n"
+            f"📧 Email: {COLLEGE_EMAIL}\n"
+            f"🌐 Website: {COLLEGE_WEBSITE}"
+        )
+
+    if "location" in msg or "address" in msg or "where" in msg:
+        return (
+            "📍 *College Location*\n\n"
+            f"{COLLEGE_NAME}\n"
+            f"{COLLEGE_LOCATION}\n\n"
+            f"🌐 Website:\n{COLLEGE_WEBSITE}"
+        )
+
+    return None
+
+
+# =========================
+# MENU OPTION REPLIES
+# =========================
+def handle_menu_selection(selected_id):
+    if selected_id == "about_college":
+        return (
+            f"🏫 *{COLLEGE_NAME}*\n\n"
+            f"📍 Location: {COLLEGE_LOCATION}\n"
+            f"🌐 Website: {COLLEGE_WEBSITE}\n"
+            f"📧 Email: {COLLEGE_EMAIL}\n"
+            f"📞 Phone: {COLLEGE_PHONE}"
+        )
+
+    if selected_id == "courses_info":
+        return (
+            "🎓 *Courses Available*\n\n"
+            f"• {COURSES}\n\n"
+            f"🌐 Website:\n{COLLEGE_WEBSITE}"
+        )
+
+    if selected_id == "fees_info":
+        return (
+            "💰 *Fee Categories*\n\n"
+            "• Merit\n"
+            "• Management\n"
+            "• Counselling\n"
+            "• 7.5 Fee\n\n"
+            "📞 For exact fee details, contact admission office."
+        )
+
+    if selected_id == "admission_info":
+        return (
+            "📝 *Admission Info*\n\n"
+            "For admission enquiry, use the official page:\n"
+            f"{COLLEGE_ADMISSION_LINK}"
+        )
+
+    if selected_id == "contact_info":
+        return (
+            "📞 *Contact Details*\n\n"
+            f"📱 Phone: {COLLEGE_PHONE}\n"
+            f"📧 Email: {COLLEGE_EMAIL}"
+        )
+
+    if selected_id == "location_info":
+        return (
+            "📍 *Location*\n\n"
+            f"{COLLEGE_NAME}\n"
+            f"{COLLEGE_LOCATION}\n\n"
+            f"🌐 Website:\n{COLLEGE_WEBSITE}"
+        )
+
+    return "🙂 Please type *hi* to open the menu again."
+
+
+# =========================
+# GEMINI FALLBACK
+# =========================
+def get_gemini_reply(user_message):
+    if not model:
+        return None
+
+    prompt = f"""
+You are a friendly WhatsApp admission assistant for {COLLEGE_NAME}.
+
+Rules:
+- Answer only using the college details given below.
+- Keep the answer short, clear, and student-friendly.
+- Use simple English.
+- If the student types Tamil-English mixed language, reply naturally in simple style.
+- Do not invent fees or departments not provided.
+- If exact fee amount is not provided, say to contact admission office.
+
+College details:
+{COLLEGE_CONTEXT}
+
+Student question:
+{user_message}
+"""
+
+    try:
+        response = model.generate_content(prompt)
+        if response and hasattr(response, "text") and response.text:
+            return response.text.strip()
+        return None
+    except Exception as e:
+        print("Gemini Error:", e)
+        return None
+
+
+def get_reply(user_message):
+    static_reply = get_static_reply(user_message)
+    if static_reply:
+        return static_reply
+
+    gemini_reply = get_gemini_reply(user_message)
+    if gemini_reply:
+        return gemini_reply
+
+    return (
+        "🙂 Sorry, I can help only with V.S.B Engineering College details.\n\n"
+        "Type *hi* to open the menu.\n\n"
+        "You can ask about:\n"
+        "• Courses\n"
+        "• Fees\n"
+        "• Admission\n"
+        "• Contact\n"
+        "• Location"
+    )
+
+
+# =========================
+# ROUTES
+# =========================
 @app.route("/", methods=["GET"])
 def home():
-    return "College WhatsApp Bot is Live!", 200
+    return "VSB WhatsApp Bot is Live!", 200
 
 
 @app.route("/webhook", methods=["GET"])
@@ -175,29 +339,45 @@ def verify_webhook():
 @app.route("/webhook", methods=["POST"])
 def receive_message():
     data = request.json
-    print("Incoming webhook:", data)
+    print("INCOMING:", data)
 
     try:
         entry = data["entry"][0]
         changes = entry["changes"][0]
         value = changes["value"]
 
-        if "messages" in value:
-            message = value["messages"][0]
+        if "messages" not in value:
+            return "OK", 200
 
-            if message.get("type") != "text":
+        message = value["messages"][0]
+        from_number = message["from"]
+        msg_type = message.get("type")
+
+        print("MSG TYPE:", msg_type)
+
+        if msg_type == "interactive":
+            interactive = message["interactive"]
+            interactive_type = interactive.get("type")
+
+            if interactive_type == "list_reply":
+                selected_id = interactive["list_reply"]["id"]
+                reply = handle_menu_selection(selected_id)
+                send_text(from_number, reply)
                 return "OK", 200
 
-            from_number = message["from"]
+        if msg_type == "text":
             user_text = message["text"]["body"]
-
-            print(f"Message from {from_number}: {user_text}")
+            print(f"USER {from_number}: {user_text}")
 
             reply = get_reply(user_text)
-            send_whatsapp_message(from_number, reply)
+
+            if reply == "SHOW_MENU":
+                send_menu(from_number)
+            else:
+                send_text(from_number, reply)
 
     except Exception as e:
-        print(f"Error: {e}")
+        print("Webhook Error:", e)
 
     return "OK", 200
 
