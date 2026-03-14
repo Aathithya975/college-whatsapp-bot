@@ -23,8 +23,30 @@ COLLEGE_PHONE = "9994496212"
 COLLEGE_WEBSITE = "https://vsbec.edu.in/"
 COLLEGE_ADMISSION_LINK = "https://vsbec.edu.in/contact-us/"
 
-COURSES = "UG, PG"
+UG_COURSES = [
+    "IT",
+    "CSE",
+    "AIML",
+    "EEE",
+    "ECE",
+    "CIVIL",
+    "CHEMICAL",
+    "AIDS",
+    "CCE",
+    "CSBS"
+]
+
+PG_COURSES = [
+    "MBA",
+    "M.Tech",
+    "M.Sc",
+    "MA"
+]
+
 FEE_TYPES = ["Merit", "Management", "Counselling", "7.5 Fee"]
+
+ug_courses_text = "\n".join([f"• {course}" for course in UG_COURSES])
+pg_courses_text = "\n".join([f"• {course}" for course in PG_COURSES])
 
 COLLEGE_CONTEXT = f"""
 College Name: {COLLEGE_NAME}
@@ -32,7 +54,8 @@ Location: {COLLEGE_LOCATION}
 Email: {COLLEGE_EMAIL}
 Phone: {COLLEGE_PHONE}
 Website: {COLLEGE_WEBSITE}
-Courses: {COURSES}
+UG Courses: {", ".join(UG_COURSES)}
+PG Courses: {", ".join(PG_COURSES)}
 Fee Types: Merit, Management, Counselling, 7.5 Fee
 Admission Info: {COLLEGE_ADMISSION_LINK}
 """
@@ -45,7 +68,6 @@ if GEMINI_API_KEY:
     model = genai.GenerativeModel("gemini-1.5-flash")
 else:
     model = None
-
 
 # =========================
 # WHATSAPP SENDERS
@@ -108,7 +130,7 @@ def send_menu(to):
                             {
                                 "id": "courses_info",
                                 "title": "🎓 Courses",
-                                "description": "UG and PG programs"
+                                "description": "UG and PG course details"
                             },
                             {
                                 "id": "fees_info",
@@ -161,11 +183,24 @@ def get_static_reply(text):
             f"📞 Phone: {COLLEGE_PHONE}"
         )
 
-    if "course" in msg or "courses" in msg or "ug" in msg or "pg" in msg:
+    if "course" in msg or "courses" in msg or msg == "ug" or msg == "pg":
         return (
-            f"🎓 *Courses Available*\n\n"
-            f"• {COURSES}\n\n"
-            f"🌐 More details:\n{COLLEGE_WEBSITE}"
+            "🎓 *Courses Available*\n\n"
+            "*UG Courses:*\n"
+            f"{ug_courses_text}\n\n"
+            "*PG Courses:*\n"
+            f"{pg_courses_text}\n\n"
+            f"🌐 Website:\n{COLLEGE_WEBSITE}"
+        )
+
+    if msg in [course.lower() for course in UG_COURSES + PG_COURSES]:
+        return (
+            f"🎓 *{msg.upper()} Course Information*\n\n"
+            f"{msg.upper()} is available in {COLLEGE_NAME}.\n\n"
+            f"📞 For admission and department details:\n"
+            f"Phone: {COLLEGE_PHONE}\n"
+            f"Email: {COLLEGE_EMAIL}\n"
+            f"🌐 Website: {COLLEGE_WEBSITE}"
         )
 
     if "fee" in msg or "fees" in msg or "management" in msg or "merit" in msg or "counselling" in msg or "7.5" in msg:
@@ -222,7 +257,10 @@ def handle_menu_selection(selected_id):
     if selected_id == "courses_info":
         return (
             "🎓 *Courses Available*\n\n"
-            f"• {COURSES}\n\n"
+            "*UG Courses:*\n"
+            f"{ug_courses_text}\n\n"
+            "*PG Courses:*\n"
+            f"{pg_courses_text}\n\n"
             f"🌐 Website:\n{COLLEGE_WEBSITE}"
         )
 
@@ -233,7 +271,9 @@ def handle_menu_selection(selected_id):
             "• Management\n"
             "• Counselling\n"
             "• 7.5 Fee\n\n"
-            "📞 For exact fee details, contact admission office."
+            "📞 For exact fee details, contact admission office.\n"
+            f"Phone: {COLLEGE_PHONE}\n"
+            f"Email: {COLLEGE_EMAIL}"
         )
 
     if selected_id == "admission_info":
@@ -247,7 +287,8 @@ def handle_menu_selection(selected_id):
         return (
             "📞 *Contact Details*\n\n"
             f"📱 Phone: {COLLEGE_PHONE}\n"
-            f"📧 Email: {COLLEGE_EMAIL}"
+            f"📧 Email: {COLLEGE_EMAIL}\n"
+            f"🌐 Website: {COLLEGE_WEBSITE}"
         )
 
     if selected_id == "location_info":
@@ -278,6 +319,8 @@ Rules:
 - If the student types Tamil-English mixed language, reply naturally in simple style.
 - Do not invent fees or departments not provided.
 - If exact fee amount is not provided, say to contact admission office.
+- UG courses are: IT, CSE, AIML, EEE, ECE, CIVIL, CHEMICAL, AIDS, CCE, CSBS.
+- PG courses are: MBA, M.Tech, M.Sc, MA.
 
 College details:
 {COLLEGE_CONTEXT}
