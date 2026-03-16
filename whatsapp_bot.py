@@ -3,7 +3,7 @@ import os
 import requests
 import logging
 import time
-from google import genai  # ✅ Updated from deprecated google.generativeai
+import google.generativeai as genai  # ✅ Stable package
 
 # ─────────────────────────────────────────────
 # Logging
@@ -19,7 +19,7 @@ app = Flask(__name__)
 # ─────────────────────────────────────────────
 # Environment Variables
 # ─────────────────────────────────────────────
-GEMINI_API_KEY     = os.environ.get("GROK_API_KEY")        # ✅ Fixed: matches Render env key
+GEMINI_API_KEY     = os.environ.get("GROK_API_KEY")        # ✅ Matches Render env key
 WHATSAPP_TOKEN     = os.environ.get("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID    = os.environ.get("PHONE_NUMBER_ID")
 VERIFY_TOKEN       = os.environ.get("VERIFY_TOKEN", "college_bot_123")
@@ -52,13 +52,14 @@ Admission Info: {COLLEGE_ADMISSION_LINK}
 """
 
 # ─────────────────────────────────────────────
-# Gemini AI Setup (updated package)
+# Gemini AI Setup
 # ─────────────────────────────────────────────
-gemini_client = None
+gemini_model = None
 if GEMINI_API_KEY:
     try:
-        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-        logger.info("✅ Gemini AI client initialised successfully.")
+        genai.configure(api_key=GEMINI_API_KEY)
+        gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+        logger.info("✅ Gemini AI initialised successfully.")
     except Exception as e:
         logger.error(f"Gemini setup error: {e}")
 
@@ -66,7 +67,7 @@ if GEMINI_API_KEY:
 # Simple In-Memory Rate Limiter
 # ─────────────────────────────────────────────
 _user_last_seen: dict = {}
-RATE_LIMIT_SECONDS = 2  # ignore duplicate messages within 2 s
+RATE_LIMIT_SECONDS = 2
 
 def _is_rate_limited(phone: str) -> bool:
     now = time.time()
@@ -77,7 +78,7 @@ def _is_rate_limited(phone: str) -> bool:
     return False
 
 # ─────────────────────────────────────────────
-# WhatsApp API helpers
+# WhatsApp API Helpers
 # ─────────────────────────────────────────────
 _WA_URL_TEMPLATE = "https://graph.facebook.com/v22.0/{phone_number_id}/messages"
 
@@ -88,7 +89,6 @@ def _wa_headers():
     }
 
 def _post_to_whatsapp(payload: dict) -> None:
-    """Low-level POST to the WhatsApp API with error logging."""
     if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
         logger.warning("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID — message not sent.")
         return
@@ -104,7 +104,6 @@ def _post_to_whatsapp(payload: dict) -> None:
     except Exception as e:
         logger.error(f"WhatsApp send error: {e}")
 
-
 def send_text(to: str, message: str) -> None:
     _post_to_whatsapp({
         "messaging_product": "whatsapp",
@@ -112,7 +111,6 @@ def send_text(to: str, message: str) -> None:
         "type": "text",
         "text": {"body": message[:4096]},
     })
-
 
 def send_menu(to: str) -> None:
     _post_to_whatsapp({
@@ -148,9 +146,8 @@ def send_menu(to: str) -> None:
         },
     })
 
-
 # ─────────────────────────────────────────────
-# Static reply logic
+# Static Reply Logic
 # ─────────────────────────────────────────────
 GREETINGS = {"hi", "hello", "hey", "hii", "menu", "start", "vanakkam", "வணக்கம்", "help"}
 
@@ -228,9 +225,8 @@ def get_static_reply(text: str):
 
     return None
 
-
 # ─────────────────────────────────────────────
-# Menu selection handler (dict lookup, O(1))
+# Menu Selection Handler
 # ─────────────────────────────────────────────
 _MENU_REPLIES = {
     "about_college": (
@@ -275,12 +271,11 @@ def handle_menu_selection(selected_id: str) -> str:
         "🙂 Please type *hi* to open the menu again."
     )
 
-
 # ─────────────────────────────────────────────
-# Gemini AI reply
+# Gemini AI Reply
 # ─────────────────────────────────────────────
 def get_gemini_reply(user_message: str):
-    if not gemini_client:
+    if not gemini_model:
         return None
 
     prompt = (
@@ -296,10 +291,7 @@ def get_gemini_reply(user_message: str):
     )
 
     try:
-        response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-        )
+        response = gemini_model.generate_content(prompt)
         text = response.text.strip() if response and hasattr(response, "text") else None
         if text:
             logger.info("Gemini reply generated successfully.")
@@ -309,9 +301,8 @@ def get_gemini_reply(user_message: str):
 
     return None
 
-
 # ─────────────────────────────────────────────
-# Unified reply resolver
+# Unified Reply Resolver
 # ─────────────────────────────────────────────
 FALLBACK_MSG = (
     "🙂 Sorry, I can only help with *V.S.B Engineering College* details.\n\n"
@@ -329,7 +320,6 @@ def get_reply(user_message: str) -> str:
 
     return FALLBACK_MSG
 
-
 # ─────────────────────────────────────────────
 # Flask Routes
 # ─────────────────────────────────────────────
@@ -337,15 +327,13 @@ def get_reply(user_message: str) -> str:
 def home():
     return "VSB WhatsApp Bot is Live! 🎓", 200
 
-
 @app.route("/health", methods=["GET"])
 def health():
     return {
         "status": "ok",
-        "gemini": gemini_client is not None,
+        "gemini": gemini_model is not None,
         "whatsapp_token_set": bool(WHATSAPP_TOKEN),
     }, 200
-
 
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
@@ -358,7 +346,6 @@ def verify_webhook():
         return challenge, 200
     logger.warning("Webhook verification failed.")
     return "Forbidden", 403
-
 
 @app.route("/webhook", methods=["POST"])
 def receive_message():
@@ -373,7 +360,6 @@ def receive_message():
         changes = entry.get("changes", [{}])[0]
         value   = changes.get("value", {})
 
-        # Ignore status updates (delivered, read, etc.) — prevents duplicate processing
         if "statuses" in value and "messages" not in value:
             return "OK", 200
 
@@ -384,12 +370,10 @@ def receive_message():
         from_number = message["from"]
         msg_type    = message.get("type")
 
-        # ── Rate limit guard ──────────────────────────────
         if _is_rate_limited(from_number):
             logger.info(f"Rate-limited duplicate from {from_number}, skipping.")
             return "OK", 200
 
-        # ── Interactive (list reply) ──────────────────────
         if msg_type == "interactive":
             interactive = message.get("interactive", {})
             if interactive.get("type") == "list_reply":
@@ -398,7 +382,6 @@ def receive_message():
                 send_text(from_number, reply)
             return "OK", 200
 
-        # ── Text message ──────────────────────────────────
         if msg_type == "text":
             user_text = message["text"]["body"].strip()
             logger.info(f"MSG from {from_number}: {user_text}")
@@ -410,7 +393,6 @@ def receive_message():
                 send_text(from_number, reply)
             return "OK", 200
 
-        # ── Unsupported message type ──────────────────────
         logger.info(f"Unsupported message type '{msg_type}' from {from_number}.")
         send_text(
             from_number,
@@ -424,9 +406,8 @@ def receive_message():
 
     return "OK", 200
 
-
 # ─────────────────────────────────────────────
-# Entry point
+# Entry Point
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
