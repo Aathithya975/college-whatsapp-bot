@@ -19,7 +19,7 @@ app = Flask(__name__)
 # ─────────────────────────────────────────────
 # Environment Variables
 # ─────────────────────────────────────────────
-GEMINI_API_KEY     = os.environ.get("GEMINI_API_KEY")
+GEMINI_API_KEY     = os.environ.get("GROK_API_KEY")        # ✅ Fixed: matches Render env key
 WHATSAPP_TOKEN     = os.environ.get("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID    = os.environ.get("PHONE_NUMBER_ID")
 VERIFY_TOKEN       = os.environ.get("VERIFY_TOKEN", "college_bot_123")
