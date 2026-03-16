@@ -1,3 +1,4 @@
+```python
 from flask import Flask, request
 import os
 import requests
@@ -5,17 +6,11 @@ import google.generativeai as genai
 
 app = Flask(__name__)
 
-# =========================
-# ENV CONFIG
-# =========================
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN")
-PHONE_NUMBER_ID = "1030379623495589"
-VERIFY_TOKEN = "college_bot_123"
+PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID")
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "college_bot_123")
 
-# =========================
-# COLLEGE DETAILS
-# =========================
 COLLEGE_NAME = "V.S.B ENGINEERING COLLEGE"
 COLLEGE_LOCATION = "Karur"
 COLLEGE_EMAIL = "admission@vsbec.com"
@@ -23,27 +18,8 @@ COLLEGE_PHONE = "9994496212"
 COLLEGE_WEBSITE = "https://vsbec.edu.in/"
 COLLEGE_ADMISSION_LINK = "https://vsbec.edu.in/contact-us/"
 
-UG_COURSES = [
-    "IT",
-    "CSE",
-    "AIML",
-    "EEE",
-    "ECE",
-    "CIVIL",
-    "CHEMICAL",
-    "AIDS",
-    "CCE",
-    "CSBS"
-]
-
-PG_COURSES = [
-    "MBA",
-    "M.Tech",
-    "M.Sc",
-    "MA"
-]
-
-FEE_TYPES = ["Merit", "Management", "Counselling", "7.5 Fee"]
+UG_COURSES = ["IT", "CSE", "AIML", "EEE", "ECE", "CIVIL", "CHEMICAL", "AIDS", "CCE", "CSBS"]
+PG_COURSES = ["MBA", "M.Tech", "M.Sc", "MA"]
 
 ug_courses_text = "\n".join([f"• {course}" for course in UG_COURSES])
 pg_courses_text = "\n".join([f"• {course}" for course in PG_COURSES])
@@ -56,23 +32,22 @@ Phone: {COLLEGE_PHONE}
 Website: {COLLEGE_WEBSITE}
 UG Courses: {", ".join(UG_COURSES)}
 PG Courses: {", ".join(PG_COURSES)}
-Fee Types: Merit, Management, Counselling, 7.5 Fee
 Admission Info: {COLLEGE_ADMISSION_LINK}
 """
 
-# =========================
-# GEMINI SETUP
-# =========================
+model = None
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
-else:
-    model = None
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+    except Exception as e:
+        print("Gemini setup error:", e)
 
-# =========================
-# WHATSAPP SENDERS
-# =========================
 def send_text(to, message):
+    if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
+        print("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID")
+        return
+
     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
@@ -82,15 +57,21 @@ def send_text(to, message):
         "messaging_product": "whatsapp",
         "to": to,
         "type": "text",
-        "text": {"body": message}
+        "text": {"body": message[:4096]}
     }
 
-    response = requests.post(url, headers=headers, json=data)
-    print("TEXT STATUS:", response.status_code)
-    print("TEXT RESPONSE:", response.text)
-
+    try:
+        response = requests.post(url, headers=headers, json=data, timeout=20)
+        print("TEXT STATUS:", response.status_code)
+        print("TEXT RESPONSE:", response.text)
+    except Exception as e:
+        print("send_text error:", e)
 
 def send_menu(to):
+    if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
+        print("Missing WHATSAPP_TOKEN or PHONE_NUMBER_ID")
+        return
+
     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
@@ -108,10 +89,7 @@ def send_menu(to):
                 "text": "🎓 VSB Engineering College Bot"
             },
             "body": {
-                "text": (
-                    "👋 Welcome to V.S.B Engineering College Assistant.\n\n"
-                    "Please choose an option below:"
-                )
+                "text": "👋 Welcome to V.S.B Engineering College Assistant.\n\nPlease choose an option below:"
             },
             "footer": {
                 "text": "✨ Quick college help"
@@ -159,14 +137,13 @@ def send_menu(to):
         }
     }
 
-    response = requests.post(url, headers=headers, json=data)
-    print("MENU STATUS:", response.status_code)
-    print("MENU RESPONSE:", response.text)
+    try:
+        response = requests.post(url, headers=headers, json=data, timeout=20)
+        print("MENU STATUS:", response.status_code)
+        print("MENU RESPONSE:", response.text)
+    except Exception as e:
+        print("send_menu error:", e)
 
-
-# =========================
-# STATIC SMART REPLIES
-# =========================
 def get_static_reply(text):
     msg = text.lower().strip()
 
@@ -240,10 +217,6 @@ def get_static_reply(text):
 
     return None
 
-
-# =========================
-# MENU OPTION REPLIES
-# =========================
 def handle_menu_selection(selected_id):
     if selected_id == "about_college":
         return (
@@ -301,10 +274,6 @@ def handle_menu_selection(selected_id):
 
     return "🙂 Please type *hi* to open the menu again."
 
-
-# =========================
-# GEMINI FALLBACK
-# =========================
 def get_gemini_reply(user_message):
     if not model:
         return None
@@ -314,11 +283,8 @@ You are a friendly WhatsApp admission assistant for {COLLEGE_NAME}.
 
 Rules:
 - Answer only using the college details given below.
-- Keep the answer short, clear, and student-friendly.
-- Use simple English.
-- If the student types Tamil-English mixed language, reply naturally in simple style.
-- Do not invent fees or departments not provided.
-- If exact fee amount is not provided, say to contact admission office.
+- Keep the answer short and clear.
+- Do not invent any fee amounts.
 - UG courses are: IT, CSE, AIML, EEE, ECE, CIVIL, CHEMICAL, AIDS, CCE, CSBS.
 - PG courses are: MBA, M.Tech, M.Sc, MA.
 
@@ -333,11 +299,10 @@ Student question:
         response = model.generate_content(prompt)
         if response and hasattr(response, "text") and response.text:
             return response.text.strip()
-        return None
     except Exception as e:
         print("Gemini Error:", e)
-        return None
 
+    return None
 
 def get_reply(user_message):
     static_reply = get_static_reply(user_message)
@@ -350,23 +315,16 @@ def get_reply(user_message):
 
     return (
         "🙂 Sorry, I can help only with V.S.B Engineering College details.\n\n"
-        "Type *hi* to open the menu.\n\n"
-        "You can ask about:\n"
-        "• Courses\n"
-        "• Fees\n"
-        "• Admission\n"
-        "• Contact\n"
-        "• Location"
+        "Type *hi* to open the menu."
     )
 
-
-# =========================
-# ROUTES
-# =========================
 @app.route("/", methods=["GET"])
 def home():
     return "VSB WhatsApp Bot is Live!", 200
 
+@app.route("/health", methods=["GET"])
+def health():
+    return {"status": "ok"}, 200
 
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
@@ -378,13 +336,15 @@ def verify_webhook():
         return challenge, 200
     return "Forbidden", 403
 
-
 @app.route("/webhook", methods=["POST"])
 def receive_message():
-    data = request.json
+    data = request.get_json(silent=True)
     print("INCOMING:", data)
 
     try:
+        if not data:
+            return "OK", 200
+
         entry = data["entry"][0]
         changes = entry["changes"][0]
         value = changes["value"]
@@ -396,13 +356,9 @@ def receive_message():
         from_number = message["from"]
         msg_type = message.get("type")
 
-        print("MSG TYPE:", msg_type)
-
         if msg_type == "interactive":
-            interactive = message["interactive"]
-            interactive_type = interactive.get("type")
-
-            if interactive_type == "list_reply":
+            interactive = message.get("interactive", {})
+            if interactive.get("type") == "list_reply":
                 selected_id = interactive["list_reply"]["id"]
                 reply = handle_menu_selection(selected_id)
                 send_text(from_number, reply)
@@ -410,8 +366,6 @@ def receive_message():
 
         if msg_type == "text":
             user_text = message["text"]["body"]
-            print(f"USER {from_number}: {user_text}")
-
             reply = get_reply(user_text)
 
             if reply == "SHOW_MENU":
@@ -424,7 +378,7 @@ def receive_message():
 
     return "OK", 200
 
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+```
