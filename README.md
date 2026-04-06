@@ -1,4 +1,4 @@
-# 📱 VSB College WhatsApp Bot
+# 📱College WhatsApp Bot
 
 An automated WhatsApp chatbot for **V.S.B Engineering College, Karur** — built with Flask, WhatsApp Cloud API, and Google Gemini AI. Students and prospective applicants can query college information, courses, fees, and admission details directly through WhatsApp, with no additional app required.
 
